@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM python:3.8-slim-buster
 
 RUN set -ex \
     # Official Mopidy install for Debian/Ubuntu along with some extensions
@@ -6,6 +6,7 @@ RUN set -ex \
  && apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         curl \
+        git \
         dumb-init \
         gnupg \
         gstreamer1.0-alsa \
@@ -19,33 +20,38 @@ RUN set -ex \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache
 
 RUN set -ex \
- && curl -L https://apt.mopidy.com/mopidy.gpg | apt-key add - \
- && curl -L https://apt.mopidy.com/mopidy.list -o /etc/apt/sources.list.d/mopidy.list \
+ && mkdir -p /usr/local/share/keyrings \
+ && curl -L https://apt.mopidy.com/mopidy.gpg -o /usr/local/share/keyrings/mopidy-archive-keyring.gpg \
+ && curl -L https://apt.mopidy.com/buster.list -o /etc/apt/sources.list.d/mopidy.list \
  && apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         mopidy \
-        mopidy-soundcloud \
-        mopidy-spotify \
     # Clean-up
  && apt-get purge --auto-remove -y \
         gcc \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache
 
-COPY Pipfile Pipfile.lock /
+COPY Pipfile /
 
 RUN set -ex \
- && pipenv install --system --deploy
+ && pipenv install --skip-lock \
+ && pipenv install qobuz-dl \
+ && pipenv install -e git+https://github.com/vitiko98/mopidy-qobuz#egg=mopidy-qobuz-hires \
+ && pipenv install --system \
+ && curl -L https://gist.githubusercontent.com/vitiko98/bb89fd203d08e285d06abf40d96db592/raw/a03b95eefea17efe1b66ca9787ce28974f8fe917/get_keys.py -o /get_keys.py
 
-RUN set -ex \
- && mkdir -p /var/lib/mopidy/.config \
- && ln -s /config /var/lib/mopidy/.config/mopidy
+#RUN set -ex \
+#&& mkdir -p /var/lib/mopidy/.config \
+#&& chmod +777 /var/lib/mopidy/.config
+# && ln -s /config /var/lib/mopidy/.config/mopidy
 
 # Start helper script.
 COPY entrypoint.sh /entrypoint.sh
 
 # Default configuration.
 COPY mopidy.conf /config/mopidy.conf
+#COPY mopidy.conf /var/lib/mopidy/.config/mopidy
 
 # Copy the pulse-client configuratrion.
 COPY pulse-client.conf /etc/pulse/client.conf
@@ -68,7 +74,7 @@ VOLUME ["/var/lib/mopidy/local", "/var/lib/mopidy/media"]
 EXPOSE 6600 6680 5555/udp
 
 ENTRYPOINT ["/usr/bin/dumb-init", "/entrypoint.sh"]
-CMD ["/usr/bin/mopidy"]
+CMD ["/usr/bin/mopidy","--config","/config/mopidy.conf"]
 
 HEALTHCHECK --interval=5s --timeout=2s --retries=20 \
     CMD curl --connect-timeout 5 --silent --show-error --fail http://localhost:6680/ || exit 1
