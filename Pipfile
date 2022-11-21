@@ -8,13 +8,12 @@ verify_ssl = true
 [packages]
 youtube-dl = "*"
 mopidy-iris = "*"
-mopidy-moped = "*"
-mopidy-gmusic = "*"
 mopidy-pandora = "*"
 mopidy-youtube = "*"
 mopidy-local = "*"
-mopidy-mpd = "*"
 pyopenssl = "*"
+qobuz-dl = "*"
+mopidy-qobuz-hires = "*"
 
 [requires]
 python_version = "3.8"

@@ -1,50 +1,16 @@
 FROM python:3.8-slim-buster
 
 RUN set -ex \
-    # Official Mopidy install for Debian/Ubuntu along with some extensions
-    # (see https://docs.mopidy.com/en/latest/installation/debian/ )
- && apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        curl \
-        git \
-        dumb-init \
-        gnupg \
-        gstreamer1.0-alsa \
-        gstreamer1.0-plugins-bad \
-        python3-crypto \
-        python3-distutils \
- && curl -L https://bootstrap.pypa.io/get-pip.py | python3 - \
- && pip install pipenv \
-    # Clean-up
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache
+  && apt-get update \
+  && apt update \
+  && apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio -y \
+  && apt install libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0 -y \
+  && pip3 install pycairo PyGObject mopidy-iris mopidy-qobuz-hires mopidy-local \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache \
+  && mkdir -p /var/lib/mopidy/.config \
+  && ln -s /config /var/lib/mopidy/.config/mopidy
 
-RUN set -ex \
- && mkdir -p /usr/local/share/keyrings \
- && curl -L https://apt.mopidy.com/mopidy.gpg -o /usr/local/share/keyrings/mopidy-archive-keyring.gpg \
- && curl -L https://apt.mopidy.com/buster.list -o /etc/apt/sources.list.d/mopidy.list \
- && apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-        mopidy \
-    # Clean-up
- && apt-get purge --auto-remove -y \
-        gcc \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.cache
-
-COPY Pipfile /
-
-RUN set -ex \
- && pipenv install --skip-lock \
- && pipenv install qobuz-dl \
- && pipenv install -e git+https://github.com/vitiko98/mopidy-qobuz#egg=mopidy-qobuz-hires \
- && pipenv install --system \
- && curl -L https://gist.githubusercontent.com/vitiko98/bb89fd203d08e285d06abf40d96db592/raw/a03b95eefea17efe1b66ca9787ce28974f8fe917/get_keys.py -o /get_keys.py
-
-#RUN set -ex \
-#&& mkdir -p /var/lib/mopidy/.config \
-#&& chmod +777 /var/lib/mopidy/.config
-# && ln -s /config /var/lib/mopidy/.config/mopidy
 
 # Start helper script.
 COPY entrypoint.sh /entrypoint.sh
@@ -56,25 +22,13 @@ COPY mopidy.conf /config/mopidy.conf
 # Copy the pulse-client configuratrion.
 COPY pulse-client.conf /etc/pulse/client.conf
 
-# Allows any user to run mopidy, but runs by default as a randomly generated UID/GID.
 ENV HOME=/var/lib/mopidy
-RUN set -ex \
- && usermod -G audio,sudo mopidy \
- && chown mopidy:audio -R $HOME /entrypoint.sh \
- && chmod go+rwx -R $HOME /entrypoint.sh
-
-# Runs as mopidy user by default.
-USER mopidy
-
-# Basic check,
-RUN /usr/bin/dumb-init /entrypoint.sh /usr/bin/mopidy --version
-
 VOLUME ["/var/lib/mopidy/local", "/var/lib/mopidy/media"]
 
 EXPOSE 6600 6680 5555/udp
 
-ENTRYPOINT ["/usr/bin/dumb-init", "/entrypoint.sh"]
-CMD ["/usr/bin/mopidy","--config","/config/mopidy.conf"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["mopidy","--config","/config/mopidy.conf"]
 
 HEALTHCHECK --interval=5s --timeout=2s --retries=20 \
     CMD curl --connect-timeout 5 --silent --show-error --fail http://localhost:6680/ || exit 1
